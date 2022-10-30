@@ -72,6 +72,7 @@ NO BB了，直接Show Code。
 void threshold_avx(uint8_t* pBuf, int width, int height, int step, int xs, int ys, int rc_width, int rc_height, uint8_t lowVal, uint8_t highVal, region* pRegion)
 {
 	int region_width;
+    //为什么region_width要比检测区域大1，因为要右移一个字节
 	if ((rc_width + 1) % 32 == 0)
 	{
 		region_width = rc_width + 1;
@@ -196,7 +197,7 @@ void threshold_avx(uint8_t* pBuf, int width, int height, int step, int xs, int y
 ![](img/hdev_res.png)
 VS:
 ![](img/vs_res.png)
-从region这些特征来看结果都是对的，至于游程相个办法来看看，假设halcon使用的region也是如他所保存的hobj文件中一样，游程是3个int16一组组连续排列的。通过VS内存看看数据的样子，再到十六进制软件hxd中看看仿写region和halcon region在内存中排列是否一致。
+从region这些特征来看结果都是对的，至于游程想个办法来看看，假设halcon使用的region也是如他所保存的hobj文件中一样，游程是3个int16一组组连续排列的，不过文件中是大端序保存的，而计算机内存中是小端序排列的。通过VS内存看看数据的样子，再到十六进制软件hxd中看看仿写region和halcon region在内存中排列是否一致。
 观察内存，以10进制双字节查看，貌似就是游程的结果。
 ![](img/vs_rle_10bit.png)
 以16进制单字节查看
@@ -207,7 +208,7 @@ VS:
 ![](img/hxd_dev_search_res.png)
 好了找到了，后续又通过hxd对自写程序的内存中游程进行了分析，懒得截图了，一模一样，看来高仿已经成功了。
 
-结果一致性看完了，再看看效率如何，代码中资源开辟已经不讲武德，比较上再不讲点武德了，用同事的话讲叫要脸何用,自写函数在vs中跑release版本，halcon在Hdevlop中跑，版本17.12。
+结果一致性看完了，再看看效率如何，代码中资源开辟已经不讲武德，比较上再不讲点武德了，用同事的话讲叫要脸何用,自写函数在vs中跑release版本，halcon在Hdevlop中跑，版本17.12，自用笔记本配置CPU AMD R5 5600U，内存16G。
 ```C
         //VS中跑一千次计时
 	QElapsedTimer tim1;
@@ -231,7 +232,9 @@ endfor
 ![](img/vs_time_res.png)
 ![](img/dev_time_res.png)
 
-不讲武德的比Halcon快了一点。。。。。
+不讲武德的比Halcon快了一点。。。。。只测了一张图片，不能说明什么大问题，而且比较方式也不算公平，halcon在vc++下调用效率应该会更高。
+
+后续继续研究一下基于游程的区域形态学操作、联通区域标记(CCL)，之前用union-find写过CCL效率真的惨不忍睹，如果大佬们有关于这些比较好的思路方案，欢迎指导。
 
 
 
