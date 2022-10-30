@@ -45,7 +45,7 @@ struct region
 ![](img/rle.png)
 
 取出一段连续的二值像素，然后将该二值像素偏移一个位置得到另一段二值像素，然后两段像素值一一异或，所得结果即为边缘信息，然后利用连用连续坐标信息与该段边缘信息结果相与(二值为0,255)或相乘(二值为0,1)，得到的就是游程列坐标，但并非最终结果，需要将这些有用的游程坐标根据边缘信息一一左移([left packing](https://stackoverflow.com/questions/36932240/avx2-what-is-the-most-efficient-way-to-pack-left-based-on-a-mask))。
-![](./img/left_pack.png)
+![](img/left_pack.png)
 
 参考文章使用了SIMD指令集，left pack使用了Shuffle指令,至于Shuffle的mask值获取办法，采用了查表的方法，基于边缘信息求到**edge mask**，然后根据**edge mask**查表获取得到**shuffle mask**。
 本文没有采用这种方法，因为这种方法所提取出的列坐标都挤到一块了，不方便插入行坐标，为了模仿halcon游程(row,cols,cole)的结构,本文使用了对edge mask进行BtiScan的方法，一个个获取列坐标。
