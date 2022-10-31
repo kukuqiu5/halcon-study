@@ -53,14 +53,22 @@ struct region
 
 自定region特征基本都是属于比较容易求得的，这些region特征可以参考Halcon的相关函数说明。
 > **area_center**
+> 
 > The operator area_center calculates the area and the center of the input regions. The area is defined as the number of pixels of a region. The center is calculated as the mean value of the line or column coordinates, respectively, of all pixels.
+> 
 > *area就是区域像素总数，row/colume就是像素坐标值的均值。*
+> 
 > **smallest_rectangle1**
+> 
 > The operator smallest_rectangle1 calculates the surrounding rectangle of all input regions (parallel to the coordinate axes). The surrounding rectangle is described by the coordinates of the corner pixels (Row1,Column1,Row2,Column2). The calculation of the rectangle is based on the center coordinates of the region pixels.
+> 
 > *rol1、col1、row2、col2外接矩形的顶点坐标。*
+> 
 > **height_width_ratio**
+> 
 > The operator height_width_ratio calculates the surrounding rectangle of all input regions (parallel to the coordinate axes). The surrounding rectangle is described by the coordinates of the corner pixels (Row1,Column1,Row2,Column2) (see smallest_rectangle1). Based on these values, height_width_ratio computes the width, height, and aspect ratio of the smallest surrounding rectangle as follows:
 > $$Width=Column2-Column1+1$$ $$Height=Row2-Row1+1$$ $$Ratio=\frac{Height}{Width}$$
+> 
 > *这就不多说了直接看公式了*。
 
 NO BB了，直接Show Code。
