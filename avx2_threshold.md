@@ -192,20 +192,33 @@ void threshold_avx(uint8_t* pBuf, int width, int height, int step, int xs, int y
 ```
 
 究竟结果对不对分别在VS和Hdevelop中跑一下看看，使用Halcon示例图片bottle_crate_01.png。
+
 ![](img/bottle_crate_01.png)
+
 结果看看对不对,Halcon:
+
 ![](img/hdev_res.png)
+
 VS:
+
 ![](img/vs_res.png)
+
 从region这些特征来看结果都是对的，至于游程想个办法来看看，假设halcon使用的region也是如他所保存的hobj文件中一样，游程是3个int16一组组连续排列的，不过文件中是大端序保存的，而计算机内存中是小端序排列的。通过VS内存看看数据的样子，再到十六进制软件hxd中看看仿写region和halcon region在内存中排列是否一致。
 观察内存，以10进制双字节查看，貌似就是游程的结果。
 ![](img/vs_rle_10bit.png)
+
 以16进制单字节查看
+
 ![](img/vs_rle_8bit.png)
+
 打开hxd,工具读取内存，选择hdevelop程序。
+
 ![](img/hxd_dev.png)
+
 拷贝vs中内存查看器下16进制单字节的一段连续游程的结果，在hxd中搜索一下这段字节序列。
+
 ![](img/hxd_dev_search_res.png)
+
 好了找到了，后续又通过hxd对自写程序的内存中游程进行了分析，懒得截图了，一模一样，看来高仿已经成功了。
 
 结果一致性看完了，再看看效率如何，代码中资源开辟已经不讲武德，比较上再不讲点武德了，用同事的话讲叫要脸何用,自写函数在vs中跑release版本，halcon在Hdevlop中跑，版本17.12，自用笔记本配置CPU AMD R5 5600U，内存16G。
@@ -229,7 +242,9 @@ threshold(Image10340191807, Region, 180, 255)
 endfor
 ```
 时间对比结果来了。
+
 ![](img/vs_time_res.png)
+
 ![](img/dev_time_res.png)
 
 不讲武德的比Halcon快了一点。。。。。只测了一张图片，不能说明什么大问题，而且比较方式也不算公平，halcon在vc++下调用效率应该会更高。
