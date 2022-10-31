@@ -42,6 +42,7 @@ struct region
 为了提升算法效率，就不另外开辟内存存储整张过程二值图像了。二值图像转到游程信息参考了[How to speed Connected Component Labeling up with SIMD RLE algorithms](https://hal.archives-ouvertes.fr/hal-02492824/document)。
 
 其核心思路如下图:
+
 ![](img/rle.png)
 
 取出一段连续的二值像素，然后将该二值像素偏移一个位置得到另一段二值像素，然后两段像素值一一异或，所得结果即为边缘信息，然后利用连用连续坐标信息与该段边缘信息结果相与(二值为0,255)或相乘(二值为0,1)，得到的就是游程列坐标，但并非最终结果，需要将这些有用的游程坐标根据边缘信息一一左移([left packing](https://stackoverflow.com/questions/36932240/avx2-what-is-the-most-efficient-way-to-pack-left-based-on-a-mask))。
