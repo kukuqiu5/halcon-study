@@ -82,7 +82,7 @@ NO BB了，直接Show Code。
 void threshold_avx(uint8_t* pBuf, int width, int height, int step, int xs, int ys, int rc_width, int rc_height, uint8_t lowVal, uint8_t highVal, region* pRegion)
 {
 	int region_width;
-    //为什么region_width要比检测区域大1，因为要右移一个字节
+	//为什么region_width要比检测区域大1，因为要右移一个字节
 	if ((rc_width + 1) % 32 == 0)
 	{
 		region_width = rc_width + 1;
@@ -95,8 +95,12 @@ void threshold_avx(uint8_t* pBuf, int width, int height, int step, int xs, int y
 	static runLength* pRLEData = new runLength[2500 * 5000];
 	static runLength* pRLEShift = pRLEData;
 	pRLEShift = pRLEData;
-	uint16_t yMin = 0, yMax = 0;
-	uint16_t xMin = 65535, xMax = 0;
+	pRegion->col1 = 32000;
+	pRegion->col2 = 0;
+	pRegion->row1 = 0;
+	pRegion->row2 = 0;
+	//uint16_t yMin = 0, yMax = 0;
+	//uint16_t xMin = 65535, xMax = 0;
 	pRegion->runLengthCount = 0;
 	pRegion->area = 0;
 	uint8_t* pLineBuf = new uint8_t[region_width];
@@ -189,9 +193,9 @@ void threshold_avx(uint8_t* pBuf, int width, int height, int step, int xs, int y
 	}
 	pRegion->centerCol = colSum / pRegion->area;
 	pRegion->centerRow = rowSum / pRegion->area;
-        pRegion->width = pRegion->col2 - pRegion->col1 + 1;
-	pRegion->height = pRegion->row2 - pRegion->row2 + 1;
-	pRegion->ratio = pRegion->height / pRegion->width;
+	pRegion->width = pRegion->col2 - pRegion->col1 + 1;
+	pRegion->height = pRegion->row2 - pRegion->row1 + 1;
+	pRegion->ratio = (double)pRegion->height / (double)pRegion->width;
 	if (pRegion->runLengthCount > 0)
 	{
 		pRegion->pRle = pRLEData;
