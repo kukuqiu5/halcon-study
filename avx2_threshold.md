@@ -1,4 +1,4 @@
-# Halcon研究(2):基于AVX2指令集仿Halcon threshold函数
+# Halcon研究(2):基于AVX2、SSE指令集仿Halcon threshold函数
 上篇解剖了一下Halcon的Region结构，Region中包含了区域信息(游程编码)，也包含了一系列特征信息(面积、中心、外接矩形坐标、长宽、比例等)。Halcon的二值函数threshold得到结果也是Region结构体,这篇就仿写个threshold函数，得到结果是我们自定义的一个Region。
 
 在开始自定义Region之前还是要对游程编码做一定了解的，百度头条的解释：
@@ -264,6 +264,156 @@ endfor
 不讲武德的比Halcon快了一点。。。。。只测了一张图片，不能说明什么大问题，而且比较方式也不算公平，halcon在vc++下调用效率应该会更高。
 
 后续继续研究一下基于游程的区域形态学操作、联通区域标记(CCL)，之前用union-find写过CCL效率真的惨不忍睹，如果大佬们有关于这些比较好的思路方案，欢迎指导。
+
+## 经大佬指点，AVX相对SSE可能只有百分10到40的提升，所以改了个SSE版本测试了一下
+
+```C
+void threshold_sse(uint8_t* pBuf, int width, int height, int step, int xs, int ys, int rc_width, int rc_height, uint8_t lowVal, uint8_t highVal, region* pRegion)
+{
+	int region_width;
+	if ((rc_width + 1) % 16 == 0)
+	{
+		region_width = rc_width + 1;
+	}
+	else
+	{
+		region_width = rc_width + 17 - (rc_width + 1) % 16;
+	}
+	//无耻一点，为了算法效率就不反复开辟空间了
+	static runLength* pRLEData = new runLength[2500 * 5000];
+	static runLength* pRLEShift = pRLEData;
+	pRLEShift = pRLEData;
+	pRegion->row1 = 0;
+	pRegion->row2 = 0;
+	pRegion->col1 = 32000;
+	pRegion->col2 = 0;
+	pRegion->runLengthCount = 0;
+	pRegion->area = 0;
+	uint8_t* pLineBuf = new uint8_t[region_width];
+	//阈值下限
+	__m128i lowDara = _mm_set1_epi8(lowVal);
+	//阈值上限
+	__m128i highData = _mm_set1_epi8(highVal);
+	//列索引
+	__m128i col_index = _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+
+	double colSum = 0, rowSum = 0;
+	bool bFindMin = false;
+	for (int j = ys; j < ys + rc_height; j++)
+	{
+		memset((void*)(pLineBuf + rc_width), 0, region_width - rc_width);
+		memcpy(pLineBuf, pBuf + j * step + xs, rc_width);
+		//left 移位一个字节用，每行第一次右移，左边需要补零
+		__m128i left = _mm_setzero_si128();
+		int rowRleCount = 0;
+		runLength* pRowFirst = pRLEShift;
+		int countIndex = 0;
+		uint16_t start_col_pos = xs;
+		int ycount = 0;
+		for (int i = 0; i < region_width; i += 16)
+		{
+			__m128i srcData = _mm_loadu_epi8(pLineBuf + i);
+			//二值操作  
+			__m128i greatOrEqual = _mm_cmpeq_epi8(_mm_max_epu8(srcData, lowDara), srcData);
+			__m128i lessOrEqual = _mm_cmpeq_epi8(_mm_min_epu8(srcData, highData), srcData);
+			__m128i combineData = _mm_and_si128(greatOrEqual, lessOrEqual);
+
+			//移位
+			__m128i shiftData = _mm_alignr_epi8(combineData, left, 15);
+			left = combineData;
+			//统计原二值图像中255像素个数 累加起来就是区域面积
+			int count255 = __popcnt(_mm_movemask_epi8(combineData));
+			pRegion->area += count255;
+			ycount += count255;
+			//原二值数据和偏移后的二值数据作异或得到边缘信息
+			__m128i edgeRes = _mm_xor_si128(combineData, shiftData);
+
+			int edgeMask = _mm_movemask_epi8(edgeRes);
+			//rowRleCount += __popcnt(edgeMask);
+			//位扫描偏移
+			unsigned long shift_col_pos = 0;
+			while (edgeMask != 0 && _BitScanForward(&shift_col_pos, edgeMask))
+			{
+				if (countIndex % 2 == 1)
+				{
+					//一段游程结束
+					pRLEShift->cole = start_col_pos + shift_col_pos - 1;
+					colSum += (pRLEShift->cole + pRLEShift->cols) * (pRLEShift->cole - pRLEShift->cols + 1) / 2.0;
+					rowSum += (pRLEShift->cole - pRLEShift->cols + 1) * j;
+					pRLEShift++;
+					pRegion->runLengthCount++;
+					rowRleCount++;
+				}
+				else
+				{
+					//一段游程开始
+					pRLEShift->row = j;
+					pRLEShift->cols = start_col_pos + shift_col_pos;
+				}
+				edgeMask = edgeMask & (~(1 << shift_col_pos));
+				countIndex++;
+			}
+			start_col_pos += 16;
+		}
+		//求Region相关特征 
+		if (rowRleCount > 0)
+		{
+			if (!bFindMin)
+			{
+				pRegion->row1 = j;
+				bFindMin = true;
+			}
+			pRegion->row2 = j;
+			if (pRowFirst->cols < pRegion->col1)
+			{
+				pRegion->col1 = pRowFirst->cols;
+			}
+			if ((pRowFirst + rowRleCount - 1)->cole > pRegion->col2)
+			{
+				pRegion->col2 = (pRowFirst + rowRleCount - 1)->cole;
+			}
+		}
+	}
+	pRegion->centerCol = colSum / pRegion->area;
+	pRegion->centerRow = rowSum / pRegion->area;
+	pRegion->width = pRegion->col2 - pRegion->col1 + 1;
+	pRegion->height = pRegion->row2 - pRegion->row1 + 1;
+	pRegion->ratio = (double)pRegion->height / (double)pRegion->width;
+	if (pRegion->runLengthCount > 0)
+	{
+		pRegion->pRle = pRLEData;
+	}
+	free(pLineBuf);
+	pLineBuf = nullptr;
+}
+```
+
+结果，基本本算法AVX相较于SSE效率只有百分之10的提升。
+
+```
+>threshold avx execute time  28.3969 ms
+>threshold sse execute time  31.4981 ms
+>线程 0x91c 已退出，返回值为 0 (0x0)。
+>线程 0x1150 已退出，返回值为 0 (0x0)。
+>threshold avx execute time  29.3032 ms
+>threshold sse execute time  31.6125 ms
+>线程 0x98 已退出，返回值为 0 (0x0)。
+>线程 0x3254 已退出，返回值为 0 (0x0)。
+>threshold avx execute time  27.6334 ms
+>threshold sse execute time  31.8155 ms
+>线程 0x6094 已退出，返回值为 0 (0x0)。
+>线程 0x2bd4 已退出，返回值为 0 (0x0)。
+>threshold avx execute time  28.7352 ms
+>threshold sse execute time  31.1612 ms
+>线程 0x5764 已退出，返回值为 0 (0x0)。
+>线程 0x115c 已退出，返回值为 0 (0x0)。
+>threshold avx execute time  28.0097 ms
+>threshold sse execute time  31.6499 ms
+>线程 0x71b4 已退出，返回值为 0 (0x0)。
+>线程 0x781c 已退出，返回值为 0 (0x0)。
+>threshold avx execute time  28.6195 ms
+>threshold sse execute time  31.4407 ms
+```
 
 
 
