@@ -4,10 +4,15 @@ CPPFLAGS = $(shell pkg-config --cflags libpng)
 LIBS = $(shell pkg-config --libs libpng)
 
 OUT = /tmp/halcon-study-threshold-test
+CONN = /tmp/halcon-study-connection-test
 
 .PHONY: test
-test: $(OUT)
+test: $(OUT) $(CONN)
 	$(OUT) img/bottle_crate_01.png
+	$(CONN) img/bottle_crate_01.png
 
 $(OUT): threshold.cpp threshold.hpp test_threshold.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -o $(OUT) threshold.cpp test_threshold.cpp $(LIBS)
+
+$(CONN): threshold.cpp connection.cpp threshold.hpp test_connection.cpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -o $(CONN) threshold.cpp connection.cpp test_connection.cpp $(LIBS)
